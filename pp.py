@@ -13,7 +13,7 @@ credentials = service_account.Credentials.from_service_account_info(
     st.secrets["google"]
 )
 client = vision.ImageAnnotatorClient(credentials=credentials)
-st.json(st.secrets["google"])
+
 
 # Function to extract text with Vision API
 def extract_amount_from_image(image):
