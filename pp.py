@@ -6,29 +6,72 @@ import pytesseract
 import io
 from datetime import datetime
 import re
+import google.generativeai as genai
+
+# -------------------------------
+# Gemini Config (optional)
+# -------------------------------
+use_gemini = False
+if "gemini" in st.secrets:
+    try:
+        genai.configure(api_key=st.secrets["gemini"]["api_key"])
+        use_gemini = True
+    except Exception as e:
+        st.warning(f"⚠️ Gemini setup failed: {e}")
 
 # -------------------------------
 # Free OCR Function (Tesseract)
 # -------------------------------
-def extract_amount_from_image(image):
-    try:
-        # Convert to text
-        full_text = pytesseract.image_to_string(image)
+def extract_text_from_image(image):
+    """Extracts raw text using Tesseract."""
+    return pytesseract.image_to_string(image)
 
-        st.info(f"📄 Extracted Text: {full_text[:200]}...")  # show first 200 chars
-
-        # Find numbers like 123 or 123.45
-        amounts = re.findall(r"\d+\.\d{2}|\d+", full_text)
-        if amounts:
-            return float(amounts[-1])  # assume last number is total
-    except Exception as e:
-        st.error(f"⚠️ OCR failed: {e}")
+def parse_amount_with_regex(text):
+    """Fallback parser using regex."""
+    amounts = re.findall(r"\d+\.\d{2}|\d+", text)
+    if amounts:
+        return float(amounts[-1])  # assume last number is total
     return None
+
+def parse_amount_with_gemini(text):
+    """Ask Gemini to extract the most likely total amount from receipt text."""
+    try:
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        prompt = f"""
+        Here is a receipt text:
+
+        {text}
+
+        Extract ONLY the final total amount the customer paid. 
+        Return just the number (like 123.45) without currency symbols or extra text.
+        """
+        response = model.generate_content(prompt)
+        raw = response.text.strip()
+        match = re.search(r"\d+\.\d{2}|\d+", raw)
+        if match:
+            return float(match.group())
+    except Exception as e:
+        st.error(f"⚠️ Gemini parsing failed: {e}")
+    return None
+
+def extract_amount_from_image(image):
+    """Main function to get amount (Tesseract + Gemini if available)."""
+    full_text = extract_text_from_image(image)
+    st.info(f"📄 Extracted Text (first 200 chars): {full_text[:200]}...")
+
+    amount = None
+    if use_gemini:
+        amount = parse_amount_with_gemini(full_text)
+
+    if not amount:
+        amount = parse_amount_with_regex(full_text)
+
+    return amount
 
 # -------------------------------
 # Expense Tracker App
 # -------------------------------
-st.title("💰 Expense Tracker with Free OCR (Tesseract)")
+st.title("💰 Expense Tracker with OCR + Gemini")
 
 FILE_NAME = "expenses.csv"
 
