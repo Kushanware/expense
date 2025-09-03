@@ -7,14 +7,9 @@ import io
 from datetime import datetime
 import re
 
-# Load Google credentials from Streamlit Secrets
-credentials = service_account.Credentials.from_service_account_info(
-    st.secrets["google"]
-)
-client = vision.ImageAnnotatorClient(credentials=credentials)
-st.json(st.secrets["google"])
-
-# Function to extract text with Vision API
+# -------------------------------
+# Free OCR Function (Tesseract)
+# -------------------------------
 def extract_amount_from_image(image):
     try:
         # Convert to text

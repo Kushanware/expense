@@ -1,4 +1,4 @@
-apt-get install -y tesseract-ocr
+
 streamlit
 pandas
 plotly
