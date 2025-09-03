@@ -1,6 +1,6 @@
-
 streamlit
 pandas
 plotly
 pillow
 pytesseract
+google-generativeai
