@@ -1,8 +1,6 @@
+apt-get install -y tesseract-ocr
 streamlit
 pandas
 plotly
-opencv-python-headless
+pillow
 pytesseract
-Pillow
-
-google-cloud-vision
