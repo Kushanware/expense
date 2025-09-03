@@ -1,0 +1,8 @@
+streamlit
+pandas
+plotly
+opencv-python-headless
+pytesseract
+Pillow
+
+google-cloud-vision

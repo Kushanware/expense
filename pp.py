@@ -1,16 +1,43 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import cv2
-import pytesseract
+from google.cloud import vision
+from google.oauth2 import service_account
 from PIL import Image
+import io
 from datetime import datetime
-import numpy as np
+import re
 
-# File storage
+# Load Google credentials from Streamlit Secrets
+credentials = service_account.Credentials.from_service_account_info(
+    st.secrets["google"]
+)
+client = vision.ImageAnnotatorClient(credentials=credentials)
+
+# Function to extract text with Vision API
+def extract_amount_from_image(image):
+    img_byte_arr = io.BytesIO()
+    image.save(img_byte_arr, format='PNG')
+    content = img_byte_arr.getvalue()
+
+    vision_image = vision.Image(content=content)
+    response = client.text_detection(image=vision_image)
+    texts = response.text_annotations
+
+    if texts:
+        full_text = texts[0].description
+        st.write("📄 Extracted Text:", full_text)
+
+        amounts = re.findall(r"\d+\.\d{2}|\d+", full_text)
+        if amounts:
+            return float(amounts[-1])  # last number = total
+    return None
+
+# Streamlit App
+st.title("💰 Expense Tracker with Google Vision OCR")
+
+# CSV Storage
 FILE_NAME = "expenses.csv"
-
-# Load/Save Data
 def load_data():
     try:
         return pd.read_csv(FILE_NAME, parse_dates=["Date"])
@@ -20,40 +47,22 @@ def load_data():
 def save_data(df):
     df.to_csv(FILE_NAME, index=False)
 
-# OCR Function
-def extract_amount_from_image(image):
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    text = pytesseract.image_to_string(gray)
-
-    # Extract first number that looks like price
-    import re
-    amounts = re.findall(r"\d+\.\d{2}|\d+", text)
-    if amounts:
-        return float(amounts[-1])  # Pick last number (usually total)
-    return None
-
-# Streamlit UI
-st.set_page_config(page_title="Expense Tracker", layout="wide")
-st.title("💰 Expense Tracker with Bill Scanner")
-
 data = load_data()
 
-# --- Camera Upload ---
+# Camera or Upload
 st.subheader("📷 Scan Bill")
-img_file = st.camera_input("Take a picture of your bill")
+img_file = st.camera_input("Take a picture of your bill") or st.file_uploader("Or upload bill image", type=["png","jpg","jpeg"])
 
 scanned_amount = None
-if img_file is not None:
+if img_file:
     img = Image.open(img_file)
-    img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-
     scanned_amount = extract_amount_from_image(img)
     if scanned_amount:
         st.success(f"✅ Detected Amount: ₹ {scanned_amount:.2f}")
     else:
         st.warning("⚠ Could not detect amount. Please enter manually.")
 
-# --- Input Form ---
+# Expense Form
 with st.form("expense_form"):
     date = st.date_input("Date", datetime.today())
     category = st.selectbox("Category", ["Food", "Travel", "Shopping", "Bills", "Other"])
@@ -66,7 +75,7 @@ with st.form("expense_form"):
         save_data(data)
         st.success("✅ Expense Added!")
 
-# --- Data Table ---
+# Dashboard
 st.subheader("📋 All Expenses")
 st.dataframe(data, use_container_width=True)
 
@@ -80,7 +89,6 @@ if not data.empty:
     with col1:
         fig1 = px.bar(category_summary, x="Category", y="Amount", color="Category", title="Expenses by Category")
         st.plotly_chart(fig1, use_container_width=True)
-
     with col2:
         fig2 = px.pie(category_summary, values="Amount", names="Category", title="Category Distribution", hole=0.4)
         st.plotly_chart(fig2, use_container_width=True)
